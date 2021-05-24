@@ -3,7 +3,7 @@ utbildningskvalitet från ett vetenskaplighetsperspektiv ([slides][slides]).
 Huvudfrågeställningen var "hur kan vem utvärdera vad?" (vilket i princip är tre 
 frågor ställd som en).
 
-[slides]: https://github.com/dbosk/prosam
+[slides]: https://github.com/dbosk/prosam/releases/download/prosam20.4/slides.pdf
 
 För att få perspektiv på tillvaron utgick vi från dessa två artiklar (med i 
 sammanhanget något provocerande titlar) och områden:
