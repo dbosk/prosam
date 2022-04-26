@@ -38,11 +38,11 @@ det är den typen av experiment som behövs genomföras för att kunna utvärder
 
 Det är detta perspektiv MDI-kursen bidrar med (eller har möjlighet att bidra 
 med) och därför som jag sa till (åtminstone) en av grupperna att det är därför 
-jag anser att den är en av de viktigare i programmet. Det är i den kursen ni 
-lär er något om hur människan fungerar och andra perspektiv på utvärdering. 
-(Sedan var utförandet av kursen inte det bästa som jag förstod det, därav 
-kommentaren att den har möjlighet att bidra med perspektiv. Mer om MDI längst 
-ned.)
+jag anser att den är en av de viktigare kurserna i programmet. Det är i den 
+kursen ni lär er något om hur människan fungerar och andra perspektiv på 
+utvärdering. (Sedan var utförandet av kursen inte det bästa som jag förstod 
+det, därav kommentaren att den har möjlighet att bidra med perspektiv. Mer om 
+MDI längst ned.)
 
 Sammanfattningsvis är det *upplevelsen* av någonting som en enskild *alltid* 
 kan utvärdera (kan vara fler saker), och i vissa fall är det precis det som ska 
@@ -79,7 +79,8 @@ MDI-kursen är att även om den har ett användargränssnittet för en app som c
 study, så går teorierna att tillämpa på många andra områden. Exempelvis som vi 
 har varit inne på ovan. Här vill jag belysa ytterligare ett område. Några har 
 nämnt i sina reflektioner att de inte behöver MDI:n för vad de avser att jobba 
-med. Men MDI:n kommer tillbaka på andra ställen också, exempelvis:
+med. Men MDI:n kommer tillbaka på andra ställen också, exempelvis relaterat 
+till mitt eget forskningsområde (säkerhet):
 
   - [Why Johnny can’t develop a secure application? A usability analysis of Java Secure Socket Extension API][javasockets]
     Från sammanfattningen: "Lack of usability of security Application 

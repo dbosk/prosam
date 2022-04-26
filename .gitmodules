@@ -1,0 +1,6 @@
+[submodule "studieteknik/makefiles"]
+	path = studieteknik/makefiles
+	url = git@github.com:dbosk/makefiles.git
+[submodule "makefiles"]
+	path = makefiles
+	url = https://github.com/dbosk/makefiles.git
