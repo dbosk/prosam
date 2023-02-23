@@ -11,6 +11,20 @@ groups.
 Then one simply runs [[../reflektion.sh]] and [[../seminarium.sh]] from that 
 directory and follows the instructions.
 
+In essence, what happens is that the script will remind us which CSV files to 
+get from where.
+In summary:
+\begin{itemize}
+\item Download the participation list from Zoom for the online seminar.
+\item Download the filled Avprickningslista sheet from Viggo's spreadsheet.
+\item Download the Kommentarer sheet from Viggo's spreadsheet.
+\end{itemize}
+Then it will report participation in the seminars.
+It will also generate a script with maximum scores prefilled for the reflection 
+assignment.
+One only fills the comments and potentially adjusts the scores.
+When done, run the script to report everything to Canvas.
+
 
 \section{Building the scripts}
 
