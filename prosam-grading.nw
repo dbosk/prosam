@@ -1,0 +1,367 @@
+\section{Overview}
+
+This is the documented source code of my grading scripts for the prosam course.
+These scripts provide a streamlined workflow for grading in the course.
+The scripts use as input the files given by Viggo for each period's 
+assignments.
+
+To use them, one copies [[config.sh]] into a directory specific for the period.
+One edits [[config.sh]] to ensure it's the right course, period and set of 
+groups.
+Then one simply runs [[../reflektion.sh]] and [[../seminarium.sh]] from that 
+directory and follows the instructions.
+
+
+\section{Building the scripts}
+
+We provide the build script [[<<Makefile>>]] to build the files.
+To generate [[Makefile]] the first time, we must run
+\begin{verbatim}
+  notangle -RMakefile -t2 prosam-grading.nw > Makefile
+\end{verbatim}
+To be able to use [[Makefile]], we first must clone the makefiles needed into 
+the current working directory:
+\begin{verbatim}
+  git clone https://github.com/dbosk/makefiles.git
+\end{verbatim}
+
+We need the [[noweb.mk]] file from the [[makefiles]] framework.
+Note that we must include [[noweb.mk]] before (unlike last, which is normal) 
+because our recipes will make use of the [[NOTANGLE]] and [[NOWEAVE]] 
+variables, not just the pattern matching rules that already exist in 
+[[noweb.mk]].
+And those variables don't exist until after the inclusion, so if we would 
+include at the end, all our targets would get empty recipes.
+<<Makefile>>=
+SCRIPTS=    config.sh reflektion.sh seminarium.sh
+
+.PHONY: all
+all: prosam-grading.pdf ${SCRIPTS}
+
+INCLUDE_MAKEFILES=./makefiles
+include ${INCLUDE_MAKEFILES}/noweb.mk
+
+<<target for Makefile>>
+<<target for documentation>>
+<<target for files>>
+
+.PHONY: clean
+clean:
+	<<cleaning for documentation>>
+	<<clearning for files>>
+@
+
+Since we document [[<<Makefile>>]] here, we must also have a target that 
+produces it, so that [[make]] can remake it.
+<<target for Makefile>>=
+Makefile: prosam-grading.nw
+	${NOTANGLE.mk}
+@
+
+We use the simple documentation, without any LaTeX preamble.
+This means we want to compile using [[NOWEAVE.pdf]] instead of the default 
+[[NOWEAVE.tex]].
+They use different arguments to [[noweave]] making Noweb generate the LaTeX 
+preamble for us.
+But this also means that we must clean the LaTeX files ourselves.
+We add [[prosam-grading.tex]] as an intermediate, to not have to run [[clean]] 
+to remake.
+<<target for documentation>>=
+.INTERMEDIATE: prosam-grading.tex
+prosam-grading.pdf: prosam-grading.nw
+	${NOWEAVE.pdf}
+<<cleaning for documentation>>=
+${RM} prosam-grading.tex prosam-grading.aux prosam-grading.fdb_latexmk
+${RM} prosam-grading.fls prosam-grading.log prosam-grading.pdf
+@
+
+Finally, the main files, the executable scripts:
+We simply tangle them.
+But since we tangle them from a file with a different name, we must specify the 
+recipe as no pattern rules will match.
+<<target for files>>=
+${SCRIPTS}: prosam-grading.nw
+	${NOTANGLE}
+	chmod +x $@
+<<clearning for files>>=
+${RM} ${SCRIPTS}
+@
+
+
+\section{Common variables and functions}
+
+The files [[reflektion.sh]] and [[seminarium.sh]] both sources the file 
+[[config.sh]], which contains common variables.
+The user will edit this file.
+<<config.sh>>=
+<<common variables>>
+<<common code and sourcing>>=
+#!/bin/bash
+
+<<common functions>>
+
+source config.sh
+@
+
+We can start with some of the common variables.
+We need the course, a regex used by the [[canvaslms]] command.
+We also need the period (to get the right assignment) and the groups (also a 
+regex to match several groups).
+
+The idea is that we update the variables in [[config.sh]] for every period.
+Each period contains two assignments, the reflection and the seminar.
+<<common variables>>=
+COURSE="prosam22"
+ROUND="2022/2023"
+PERIOD="1"
+GROUP="[789]"
+@
+
+Now the assignment is always named with ``Seminarium period'' (or ``Uppsats 
+period'') as prefix and the actual period.
+<<reflektion.sh>>=
+<<common code and sourcing>>
+ASSIGN="Uppsats period $PERIOD $ROUND"
+<<seminarium.sh>>=
+<<common code and sourcing>>
+ASSIGN="Seminarium period $PERIOD $ROUND"
+@
+
+The [[grade]] function can be used as follows:
+\begin{center}
+  [[grade user points msg]]
+\end{center}
+It requires the username, points (the grade) and a message as arguments.
+The message is actually all remaining arguments.
+It also requires the variables [[COURSE]] and [[ASSIGN]] to be set.
+
+The construction is then very simple.
+It uses [[canvaslms]] to set the grade and leave the message as a comment for 
+the student.
+It runs this as a background job.
+But since we cannot run too many parallel requests to Canvas, we add a 
+one-second sleep.
+(This value of one second was found by trial and error.)
+<<common functions>>=
+grade() {
+  user="$1"
+  grade="$2"
+  shift; shift
+  msg="$*"
+
+  echo $ASSIGN $user $grade
+  canvaslms grade -c "$COURSE" -a "$ASSIGN" -u "$user" \
+    -g "$grade" -m "$msg" &
+  sleep 1
+}
+@
+
+The [[group]] function returns the students in the specified groups.
+It can be used as follows:
+\begin{center}
+  [[group groupnums]]
+\end{center}
+The [[groupnums]] argument is actually a regex matching group numbers.
+The function also requires the variable [[COURSE]] to be set.
+
+The group assignment for prosam is actually an assignment, where the score is 
+the group number.
+Hence we use the [[canvaslms submissions]] to get the group numbers of the 
+students.
+We simply cut the relevant columns from the output and grep the groups numbers.
+The key to grepping is to not get group numbers where the desired group number 
+is a substring.
+
+We also sort the students based on last name, since that's how Viggo sorts the 
+students' reflections.
+This makes grading faster.
+<<common functions>>=
+group() {
+  group_num="$1"
+  canvaslms submissions -c ${COURSE} -a Gruppnummer | cut -f 3-4 \
+    | grep "[^0-9]${group_num}$" | cut -f 1 | sort -k 2
+}
+@
+
+
+\section{The seminar assignment}
+
+The seminar can be run both on campus and on Zoom.
+The Zoom participation log can be extracted from Zoom as a CSV file.
+The campus participation can be logged using Viggo's spreadsheet, where we can 
+extract the tick-off sheet.
+We save them into files names as follows.
+<<common variables>>=
+ZOOM="online.csv"
+CAMPUS="campus.tsv"
+@
+
+Now, due to the construction of [[grade]], we also need to [[wait]] for all the 
+[[canvaslms]] run in parallel.
+<<seminarium.sh>>=
+<<process online participants>>
+<<process campus participants>>
+
+echo "Waiting for all canvaslms calls to finish ..."
+wait
+@
+
+\subsection{Process online participants}
+
+Now, let's process the online participants.
+We need the user to download the CSV export, so we add a quick reminder.
+<<process online participants>>=
+echo "Make sure ${ZOOM} is available, download it from"
+echo "  Zoom -> Reports -> Usage Reports."
+echo "Press return to continue."
+read null
+echo "Processing ..."
+@
+
+The second column of the CSV is the email address, we use that one to grade.
+We set one point as grade since they actively participated.
+(We want to skip the headers on the first row.)
+<<process online participants>>=
+for s in $(tail -n +2 $ZOOM | cut -f 2 -d,); do
+  grade "$s" 1
+done
+@
+
+\subsection{Process campus participants}
+
+The process is the same for campus students, it's just a different file.
+<<process campus participants>>=
+echo "Make sure campus.tsv is available, download it from Viggo's sheet."
+echo "It's the Avprickningslista. Make sure it's separated by tabs,"
+echo "not commas."
+echo "Press return to continue."
+read null
+echo "Processing ..."
+@
+
+Now, the format of this file is as follows.
+The sheet in Viggo's file hides all but the relevant columns.
+This makes it easy to set an x on the right student and the right assignment.
+(Actually, we don't really care in which column we put that x.)
+The exported TSV file, however, contains all the columns.
+
+The first row of the exported file is a header, so we must remove that one.
+The third column contains the KTH email address, we will use that identity for 
+grading.
+To tick students off, we put an ``x'' in one of the assignment columns, those 
+start at column 7.
+This means we simply look for the lone x's and give those students a point.
+<<process campus participants>>=
+students=$(tail -n +2 $CAMPUS | cut -f 3,7- | \
+  egrep "[^a-zA-Z@]x[^a-zA-Z@]" | cut -f 1)
+
+for s in $students; do
+  grade "$s" 1
+done
+@
+
+
+\section{The reflection assignment}
+
+The reflection assignment consists of two parts:
+\begin{enumerate}
+\item Writing a reflective essay.
+\item Providing peer feedback to at least six other students' essays.
+\end{enumerate}
+Then the teacher should also grade each essay.
+
+We get the peer feedback in a spreadsheet from Viggo.
+From that we can generate a file that can be used to grade the essays.
+The file generated is a script that should be run after grading to set the 
+grades and provide the feedback back to the students.
+<<common variables>>=
+FEEDBACK="feedback.tsv"
+ESSAY_OUTPUT="reflektion-results.sh"
+@
+
+One can only achieve the full points (2) if one has commented on at least six 
+other students' essays.
+Otherwise, one can at most get one point.
+<<reflektion.sh>>=
+echo "Will clear $ESSAY_OUTPUT."
+echo "Get feedback.tsv from Viggo's sheet (kommentarer)."
+echo "Press return to continue"
+read null
+echo "Processing ..."
+
+<<prepare the essay output file>>
+
+<<for each student in the groups>>
+do
+  <<count the number of comments for student>>
+  if [ "$comments_count" -gt 5 ]; then
+    <<write start of grade line for student with full points>>
+  else
+    <<write start of grade line for student with only one point>>
+  fi
+  <<add all comments from the other students>>
+  <<write termination line for student>>
+done
+
+echo 'echo "Waiting for all canvaslms calls to finish ..."' >> $ESSAY_OUTPUT
+echo wait >> $ESSAY_OUTPUT
+
+echo "Now edit $ESSAY_OUTPUT and then run 'bash ./$ESSAY_OUTPUT'."
+@
+
+Now, to iterate through the students, we must go through a list of names 
+(containing spaces).
+Hence, we should modify [[IFS]].
+We use the [[group]] function from above to filter out the students of the 
+relevant groups.
+<<for each student in the groups>>=
+oldIFS="$IFS"
+IFS=$'\n'
+for student in $(group $GROUP | sed "s/\r//")
+@
+
+The name of the results file is kept in the variable [[ESSAY_OUTPUT]].
+This file should source [[config.sh]] to get the [[grade]] function and, 
+consequently, it must have the [[ASSIGN]] variable set to the name of the 
+assignment.
+<<prepare the essay output file>>=
+(echo "source config.sh"; echo "ASSIGN=\"$ASSIGN\""; echo) > "$ESSAY_OUTPUT"
+@
+
+After that, each student get a line containing the [[grade]] command.
+Something like this:
+\begin{verbatim}
+  grade "Student Studentsson" points \
+  "
+  feedback 1
+  ...
+  feedback 6
+  "
+\end{verbatim}
+This way, the teacher grading can see what feedback the student received.
+<<write start of grade line for student with full points>>=
+(echo "grade \"$student\" 2 \\"; echo '"') >> $ESSAY_OUTPUT
+<<write start of grade line for student with only one point>>=
+(echo "grade \"$student\" 1 \\"; echo '"') >> $ESSAY_OUTPUT
+<<write termination line for student>>=
+(echo '"'; echo) >> $ESSAY_OUTPUT
+@
+
+The format of the feedback table is also extensive.
+The spreadsheet from Viggo has hidden columns.
+We are interested in the name of who gave the feedback (column 2) and who 
+received the feedback (column 5).
+We are also interested in the actual feedback (column 11).
+
+Thus we count how many times the student's name occurred in the second column.
+We also print this for the user running the script.
+<<count the number of comments for student>>=
+comments_count=$(cut -f 2 $FEEDBACK | grep "$student" | wc -l)
+echo $ASSIGN $student $comments_count comments
+@
+
+And we simply take lines that starts with the student's name in the fifth 
+column (who received the feedback) together with the feedback.
+<<add all comments from the other students>>=
+cut -f 5,11 $FEEDBACK | grep "^$student" | cut -f 2 >> $ESSAY_OUTPUT
+
