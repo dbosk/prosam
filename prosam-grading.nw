@@ -5,8 +5,8 @@ These scripts provide a streamlined workflow for grading in the course.
 The scripts use as input the files given by Viggo for each period's 
 assignments.
 
-To use them, one copies [[config.sh]] into a directory specific for the period.
-One edits [[config.sh]] to ensure it's the right course, period and set of 
+To use them, one copies [[common.sh]] into a directory specific for the period.
+One edits [[common.sh]] to ensure it's the right course, period and set of 
 groups.
 Then one simply runs [[../reflektion.sh]] and [[../seminarium.sh]] from that 
 directory and follows the instructions.
@@ -33,7 +33,7 @@ variables, not just the pattern matching rules that already exist in
 And those variables don't exist until after the inclusion, so if we would 
 include at the end, all our targets would get empty recipes.
 <<Makefile>>=
-SCRIPTS=    config.sh reflektion.sh seminarium.sh
+SCRIPTS=    common.sh reflektion.sh seminarium.sh
 
 .PHONY: all
 all: prosam-grading.pdf ${SCRIPTS}
@@ -91,16 +91,19 @@ ${RM} ${SCRIPTS}
 \section{Common variables and functions}
 
 The files [[reflektion.sh]] and [[seminarium.sh]] both sources the file 
-[[config.sh]], which contains common variables.
-The user will edit this file.
-<<config.sh>>=
+[[common.sh]], which contains common variables and functions.
+The user will edit the variables in this file.
+(We also keep the functions in [[<<common.sh>>]] instead of
+[[<<common code and sourcing>>]] so that [[reflektion.sh]] can simply put a 
+[[source common.sh]] in the script it will generate, to provide that script 
+with the [[grade]] function.
+More on this later.)
+<<common.sh>>=
 <<common variables>>
+<<common functions>>
 <<common code and sourcing>>=
 #!/bin/bash
-
-<<common functions>>
-
-source config.sh
+source common.sh
 @
 
 We can start with some of the common variables.
@@ -108,7 +111,7 @@ We need the course, a regex used by the [[canvaslms]] command.
 We also need the period (to get the right assignment) and the groups (also a 
 regex to match several groups).
 
-The idea is that we update the variables in [[config.sh]] for every period.
+The idea is that we update the variables in [[common.sh]] for every period.
 Each period contains two assignments, the reflection and the seminar.
 <<common variables>>=
 COURSE="prosam22"
@@ -321,11 +324,11 @@ for student in $(group $GROUP | sed "s/\r//")
 @
 
 The name of the results file is kept in the variable [[ESSAY_OUTPUT]].
-This file should source [[config.sh]] to get the [[grade]] function and, 
+This file should source [[common.sh]] to get the [[grade]] function and, 
 consequently, it must have the [[ASSIGN]] variable set to the name of the 
 assignment.
 <<prepare the essay output file>>=
-(echo "source config.sh"; echo "ASSIGN=\"$ASSIGN\""; echo) > "$ESSAY_OUTPUT"
+(echo "source common.sh"; echo "ASSIGN=\"$ASSIGN\""; echo) > "$ESSAY_OUTPUT"
 @
 
 After that, each student get a line containing the [[grade]] command.
