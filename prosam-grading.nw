@@ -144,6 +144,8 @@ ASSIGN="Uppsats period $PERIOD $ROUND"
 ASSIGN="Seminarium period $PERIOD $ROUND"
 @
 
+\subsection{Grading with the [[grade]] function}
+
 The [[grade]] function can be used as follows:
 \begin{center}
   [[grade user points msg]]
@@ -172,6 +174,8 @@ grade() {
   sleep 1
 }
 @
+
+\subsection{Listing students in groups with the [[group]] function}
 
 The [[group]] function returns the students in the specified groups.
 It can be used as follows:
@@ -258,19 +262,21 @@ echo "Processing ..."
 
 Now, the format of this file is as follows.
 The sheet in Viggo's file hides all but the relevant columns.
-This makes it easy to set an x on the right student and the right assignment.
-(Actually, we don't really care in which column we put that x.)
+This makes it easy to set a marker, an x or o, on the right student and the 
+right assignment.
+(Actually, we don't really care in which column we put that marker as long as 
+it's on the right student.)
 The exported TSV file, however, contains all the columns.
 
 The first row of the exported file is a header, so we must remove that one.
 The third column contains the KTH email address, we will use that identity for 
 grading.
-To tick students off, we put an ``x'' in one of the assignment columns, those 
-start at column 7.
+To tick students off, we put an ``x'' or an ``o'' in one of the assignment 
+columns, those start at column 7.
 This means we simply look for the lone x's and give those students a point.
 <<process campus participants>>=
 students=$(tail -n +2 $CAMPUS | cut -f 3,7- | \
-  egrep "[^a-zA-Z@]x[^a-zA-Z@]" | cut -f 1)
+  egrep "[^a-zA-Z@][xo][^a-zA-Z@]" | cut -f 1)
 
 for s in $students; do
   grade "$s" 1
