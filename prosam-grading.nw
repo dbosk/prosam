@@ -320,7 +320,7 @@ do
   if [ "$comments_count" -gt 5 ]; then
     <<write start of grade line for student with full points>>
   else
-    <<write start of grade line for student with only one point>>
+    <<write start of grade line for student with too few comments>>
   fi
   <<add all comments from the other students>>
   <<write termination line for student>>
@@ -362,10 +362,15 @@ Something like this:
   "
 \end{verbatim}
 This way, the teacher grading can see what feedback the student received.
+
+Students who gave more than five comments (that is, at least six comments), get 
+the full points (2).
+Students who had too few comments get 0 points according to the grading 
+criteria.
 <<write start of grade line for student with full points>>=
 (echo "grade \"$student\" 2 \\"; echo '"') >> $ESSAY_OUTPUT
-<<write start of grade line for student with only one point>>=
-(echo "grade \"$student\" 1 \\"; echo '"') >> $ESSAY_OUTPUT
+<<write start of grade line for student with too few comments>>=
+(echo "grade \"$student\" 0 \\"; echo '"') >> $ESSAY_OUTPUT
 <<write termination line for student>>=
 (echo '"'; echo) >> $ESSAY_OUTPUT
 @
