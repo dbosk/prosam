@@ -170,9 +170,26 @@ grade() {
 
   echo $ASSIGN $user $grade
   canvaslms grade -c "$COURSE" -a "$ASSIGN" -u "$user" \
-    -g "$grade" -m "$msg" &
+    -g "$grade" -m "$msg" \
+    <<drop all missing [[login_id]] from stderr>> &
   sleep 1
 }
+@
+
+Now, we want to drop all the `has no [[login_id]]` error messages from stderr, 
+because in the prosam course they clutter a lot.
+There is a nice technique called process substitution\footnote{
+  See \texttt{https://unix.stackexchange.com/a/3657/43490} and
+  \texttt{https://en.wikipedia.org/wiki/Process\textunderscore{}substitution}.
+}.
+This means that we can grep only stderr and keep it on stderr.
+(This seemingly only works in Bash and ksh; the features originally appeared in 
+ksh in 1988.)
+The [[2>]] says we want to do this to stderr.
+[[>(...)]] captures the output that would otherwise have gone to a file.
+[[>&2]] puts it back into stderr.
+<<drop all missing [[login_id]] from stderr>>=
+2> >(grep -v "has no login_id" >&2)
 @
 
 \subsection{Listing students in groups with the [[group]] function}
@@ -200,7 +217,8 @@ This makes grading faster.
 group() {
   group_num="$1"
   canvaslms submissions -c ${COURSE} -a Gruppnummer | cut -f 3-4 \
-    | grep "[^0-9]${group_num}$" | cut -f 1 | sort -k 2
+    | grep "[^0-9]${group_num}$" | cut -f 1 | sort -k 2 \
+    <<drop all missing [[login_id]] from stderr>>
 }
 @
 
