@@ -17,6 +17,9 @@ In summary:
 \begin{itemize}
 \item Download the participation list from Zoom for the online seminar.
 \item Download the filled Avprickningslista sheet from Viggo's spreadsheet.
+  Or use [[prosammail.py]] to read the mailbox for the campus seminar.
+  ([[prosammail.py]] requires the Python packages [[pypandoc]] and [[typer]] to 
+  be installed.)
 \item Download the Kommentarer sheet from Viggo's spreadsheet.
 \end{itemize}
 Then it will report participation in the seminars.
@@ -48,6 +51,7 @@ And those variables don't exist until after the inclusion, so if we would
 include at the end, all our targets would get empty recipes.
 <<Makefile>>=
 SCRIPTS=    common.sh reflektion.sh seminarium.sh
+SCRIPTS+=   prosammail.py
 
 .PHONY: all
 all: prosam-grading.pdf ${SCRIPTS}
@@ -235,6 +239,20 @@ ZOOM="online.csv"
 CAMPUS="campus.tsv"
 @
 
+An alternative is that the students send an email to the teacher at the end of 
+the seminar.
+The teacher picks a random sentence and asks the students to write that in the 
+email.
+They should also send it at reasonably the same time.
+Then the teacher can read the mailbox and see who sent the email.
+We can use [[prosammail.py]] to read the mailbox, so we have a variable to 
+store the path to the mailbox.
+<<common variables>>=
+MAILBOX="~/mail/kth/INBOX"
+@
+
+This leaves us with the following structure for
+[[<<seminarium.sh>>]].
 Now, due to the construction of [[grade]], we also need to [[wait]] for all the 
 [[canvaslms]] run in parallel.
 <<seminarium.sh>>=
@@ -270,7 +288,7 @@ done
 
 The process is the same for campus students, it's just a different file.
 <<process campus participants>>=
-echo "Make sure campus.tsv is available, download it from Viggo's sheet."
+echo "Make sure ${CAMPUS} is available, download it from Viggo's sheet."
 echo "It's the Avprickningslista. Make sure it's separated by tabs,"
 echo "not commas."
 echo "Press return to continue."
@@ -299,6 +317,217 @@ students=$(tail -n +2 $CAMPUS | cut -f 3,7- | \
 for s in $students; do
   grade "$s" 1
 done
+@
+
+\subsection{Process campus participants with [[prosammail.py]]}
+
+We can also use [[prosammail.py]] to read the mailbox for the campus seminar.
+<<process campus participants>>=
+echo "Will read the mailbox ${MAILBOX}."
+echo "Press return to continue."
+read null
+
+students=$(prosammail.py $MAILBOX)
+for s in $students; do
+  grade "$s" 1
+done
+@
+
+\subsubsection{Reading emails in the mailbox}
+
+To tick the students off as present at the end of the seminar, I ask them to 
+send an email to my email address.
+The subject is always ``prosam'' or ``Prosam''.
+The body is a randomly made up sentence that is hard enough to guess.
+They have to send it at that time, since any delayed messages might have gotten 
+the sentence relayed to them.
+
+What we want to do here is to write a short script that reads the mailbox and 
+outputs all the students who sent the email.
+We want to double check the times, so we'll output a brief confirmation for 
+each student.
+We'll output that on stderr so that we can redirect stdout to a file or 
+variable.
+<<prosammail.py>>=
+#!/usr/bin/env python3
+
+import mailbox
+import os
+from pathlib import Path
+import re
+import typer
+from typing import Annotated
+<<additional imports>>
+
+cli = typer.Typer()
+
+<<CLI argument and option definitions>>
+<<helper functions>>
+
+@cli.command()
+def main(mailbox_path: <<mailbox type and default value>>):
+  """
+  Reads the mailbox and outputs the students who sent the email.
+  """
+  maildir = mailbox.Maildir(mailbox_path, create=False)
+  <<[[msg]] iteration variables>>
+  for msg in maildir:
+    <<check if we should process [[msg]] or continue>>
+    <<process [[msg]] if it's a prosam message>>
+    <<mark [[msg]] as processed>>
+
+if __name__ == "__main__":
+  cli()
+<<mailbox type and default value>>=
+Annotated[Path, mailbox_arg] = f"{os.environ['HOME']}/mail/kth/INBOX"
+<<CLI argument and option definitions>>=
+mailbox_arg = typer.Argument(help="The path to the Maildir mailbox.")
+@
+
+Now, on to the processing of the messages.
+We first check the subject line.
+We check that the subject is either ``prosam'' or ``Prosam'', not that 
+``prosam'' is a substring of the subject.
+There are other messages where ``prosam'' is a substring of the subject, but 
+not the other way around.
+If the user did everything correctly, we print their username.
+<<check if we should process [[msg]] or continue>>=
+<<continue if [[msg]] is already processed>>
+if msg['subject'] not in ['prosam', 'Prosam']:
+  continue
+@
+
+Now that we know that [[msg]] is indeed a prosam message, we can try to process 
+it.
+The processing takes a few steps.
+But if everything checks out, we should print the student's username to stdout.
+<<process [[msg]] if it's a prosam message>>=
+<<let [[body]] be the body of [[msg]]>>
+<<let [[user]] be the student's username>>
+<<check that they wrote the right phrase in [[body]], or continue>>
+
+print(user)
+@
+
+\paragraph{Which student is it?}
+
+We want the students' KTH email address, to get their username.
+The way we'll do this is to first check for a KTH email in the body.
+If we can't find anything there, we'll check the from field.
+
+The reason we do this in this order, is that in some cases, we as the course 
+leader send the email to ourselves containing the student's email.
+With this order, we'll find the student's email, not our own.
+In the other cases, we won't find any email address in the body, so then we'll 
+find the sender's address in the from field.
+<<[[msg]] iteration variables>>=
+email_pattern = re.compile(r"(\w+)\\?@kth.se")
+<<let [[user]] be the student's username>>=
+<<add all email addresses from [[body]] to [[user]]>>
+if not user:
+  <<let [[user]] be the sender's email address>>
+@
+
+When we try to find the address in the body, we want to look for all addresses.
+This is because, for those students who don't have a phone that they can use to 
+send an email at the seminar, the teacher can note them in an email and send it 
+to themself.
+Then it's nice to just have one email and not several.
+<<add all email addresses from [[body]] to [[user]]>>=
+user = " ".join(email_pattern.findall(body))
+<<let [[user]] be the sender's email address>>=
+try:
+  user = email_pattern.search(msg['from']).group(1)
+except:
+  continue
+@
+
+\paragraph{Did they write the correct phrase?}
+
+We don't need to know which phrase they're supposed to write.
+We'll take another approach.
+For each prosam email, we'll print who sent it, date and the body and ask for 
+confirmation.
+We need to use stderr for this, since we want to print the results to stdout to 
+be piped into another program.
+
+We'll print who sent it, that is [[from]] instead of [[user]].
+Sometimes we send this email ourselves, just containing the student's email.
+We want to detect that easily.
+<<check that they wrote the right phrase in [[body]], or continue>>=
+<<let [[date]] be the date of [[msg]]>>
+sender = email_pattern.search(msg['from']).group(1)
+if sender != user:
+  print(f"{sender} ({user}) {date}:\n{body}", file=sys.stderr)
+else:
+  print(f"{user} {date}:\n{body}", file=sys.stderr)
+
+choices = ["y", "yes", "n", "no"]
+print(f"Does that look correct? {choices}", end=' ', file=sys.stderr)
+if input_choice(choices) not in ['y', 'yes']:
+  continue
+<<helper functions>>=
+def input_choice(choices):
+  while True:
+    choice = input().casefold()
+    if choice in choices:
+      return choice
+    print(f"Please choose one of {choices}", end=' ', file=sys.stderr)
+<<additional imports>>=
+import sys
+@
+
+\paragraph{Reading out [[body]] and [[date]]}
+
+We need to read out the body and date of [[msg]].
+The date is easy.
+<<let [[date]] be the date of [[msg]]>>=
+date = msg['date']
+@
+
+For the body, we need to take into consideration if it's a multipart message.
+We also need to consider the format.
+<<let [[body]] be the body of [[msg]]>>=
+if not msg.is_multipart():
+  body = get_decoded_body(msg.get_payload(decode=True), msg.get_charsets())
+else:
+  body = ""
+  for part in msg.get_payload():
+    try:
+      body += get_decoded_body(part, msg.get_charsets())
+      body += "\n"
+    except: continue
+  if not body:
+    continue
+body = body.strip()
+<<helper functions>>=
+def get_decoded_body(payload, charsets):
+  for charset in charsets:
+    try:
+      body = payload.decode(charset)
+    except: continue
+    else: break
+  else:
+    raise Exception("Could not decode body")
+
+  if "html" in body or "div" in body:
+    body = pypandoc.convert_text(body, "plain", format="html")
+  return body
+<<additional imports>>=
+import pypandoc
+@
+
+\paragraph{Marking [[msg]] as processed}
+
+We want to mark [[msg]] as processed.
+We do this by marking the email as read.
+<<mark [[msg]] as processed>>=
+print(f"Marking {msg['subject']} from {msg['from']} as read", file=sys.stderr)
+msg.add_flag("S")
+msg.set_subdir("cur")
+<<continue if [[msg]] is already processed>>=
+if "S" in msg.get_flags():
+  continue
 @
 
 
