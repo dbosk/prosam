@@ -370,11 +370,17 @@ def main(mailbox_path: <<mailbox type and default value>>):
   Reads the mailbox and outputs the students who sent the email.
   """
   maildir = mailbox.Maildir(mailbox_path, create=False)
+  maildir.lock()
+
   <<[[msg]] iteration variables>>
-  for msg in maildir:
+  for key, msg in maildir.iteritems():
     <<check if we should process [[msg]] or continue>>
     <<process [[msg]] if it's a prosam message>>
-    <<mark [[msg]] as processed>>
+    <<use [[key]] to mark [[msg]] as processed>>
+
+  maildir.flush()
+  maildir.unlock()
+  maildir.close()
 
 if __name__ == "__main__":
   cli()
@@ -521,10 +527,17 @@ import pypandoc
 
 We want to mark [[msg]] as processed.
 We do this by marking the email as read.
-<<mark [[msg]] as processed>>=
-print(f"Marking {msg['subject']} from {msg['from']} as read", file=sys.stderr)
-msg.add_flag("S")
+However, we must do this with the Maildir object ([[maildir]]), it's not 
+sufficient to do it with only the message ([[msg]]).
+We use the [[__setitem__]] method of the Maildir object to update the message.
+These methods require the key of the message, [[key]].
+
+To mark the message as read, we simply move it to the [[cur]] subdirectory and 
+add the [[S]] flag.
+<<use [[key]] to mark [[msg]] as processed>>=
 msg.set_subdir("cur")
+msg.add_flag("S")
+maildir[key] = msg
 <<continue if [[msg]] is already processed>>=
 if "S" in msg.get_flags():
   continue
