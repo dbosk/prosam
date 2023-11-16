@@ -397,10 +397,14 @@ We check that the subject is either ``prosam'' or ``Prosam'', not that
 There are other messages where ``prosam'' is a substring of the subject, but 
 not the other way around.
 If the user did everything correctly, we print their username.
+However, sometimes they complement it by replying to their old message, so we 
+also want to cover prefixes of ``Re:'' and ``Sv:''.
 <<check if we should process [[msg]] or continue>>=
 <<continue if [[msg]] is already processed>>
-if msg['subject'] not in ['prosam', 'Prosam']:
+if subject_pattern.match(msg['subject']) is None:
   continue
+<<[[msg]] iteration variables>>=
+subject_pattern = re.compile(r"(Re|Sv)?:?\s*(Prosam)\s*$", re.IGNORECASE)
 @
 
 Now that we know that [[msg]] is indeed a prosam message, we can try to process 
@@ -427,9 +431,9 @@ With this order, we'll find the student's email, not our own.
 In the other cases, we won't find any email address in the body, so then we'll 
 find the sender's address in the from field.
 <<[[msg]] iteration variables>>=
-email_pattern = re.compile(r"(\w+)\\?@kth.se")
+email_pattern = re.compile(r"(\w+)\\?@\w*\.?kth\.se")
 <<let [[user]] be the student's username>>=
-<<add all email addresses from [[body]] to [[user]]>>
+<<add all usernames from [[body]] to [[user]]>>
 if not user:
   <<let [[user]] be the sender's email address>>
 @
@@ -439,7 +443,7 @@ This is because, for those students who don't have a phone that they can use to
 send an email at the seminar, the teacher can note them in an email and send it 
 to themself.
 Then it's nice to just have one email and not several.
-<<add all email addresses from [[body]] to [[user]]>>=
+<<add all usernames from [[body]] to [[user]]>>=
 user = " ".join(email_pattern.findall(body))
 <<let [[user]] be the sender's email address>>=
 try:
