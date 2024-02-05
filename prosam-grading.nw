@@ -652,9 +652,16 @@ received the feedback (column 5).
 We are also interested in the actual feedback (column 11).
 
 Thus we count how many times the student's name occurred in the second column.
-We also print this for the user running the script.
+However, we want to count unique comments.
+If the student pasted the same comment for everyone, then we should only count 
+one instead of six.
+So we pass the student identifier (column 2) and their comments (column 
+11) through [[sort -u]].
+
+Finally, we print the number of unique comments to stdout for ourselves, the 
+user running the script.
 <<count the number of comments for student>>=
-comments_count=$(cut -f 2 $FEEDBACK | grep "$student" | wc -l)
+comments_count=$(cut -f 2,11 $FEEDBACK | grep "$student" | sort -u | wc -l)
 echo $ASSIGN $student $comments_count comments
 @
 
