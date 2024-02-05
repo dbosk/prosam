@@ -571,7 +571,7 @@ other students' essays.
 Otherwise, one can at most get one point.
 <<reflektion.sh>>=
 echo "Will clear $ESSAY_OUTPUT."
-echo "Get feedback.tsv from Viggo's sheet (kommentarer)."
+echo "Get ${FEEDBACK} from Viggo's sheet (kommentarer)."
 echo "Press return to continue"
 read null
 echo "Processing ..."
