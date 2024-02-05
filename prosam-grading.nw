@@ -620,8 +620,14 @@ Something like this:
 \begin{verbatim}
   grade "Student Studentsson" points \
   "
+  Bra reflektion!
+
   feedback 1
+
+  feedback 2
+
   ...
+
   feedback 6
   "
 \end{verbatim}
@@ -653,7 +659,13 @@ echo $ASSIGN $student $comments_count comments
 @
 
 And we simply take lines that starts with the student's name in the fifth 
-column (who received the feedback) together with the feedback.
+column (who received the feedback) together with the feedback (column 11).
+We then add an extra newline to separate the comments for readability.
 <<add all comments from the other students>>=
-cut -f 5,11 $FEEDBACK | grep "^$student" | cut -f 2 >> $ESSAY_OUTPUT
+(echo "Bra reflektion!"; echo) >> $ESSAY_OUTPUT
+cut -f 5,11 $FEEDBACK \
+  | grep "^$student" \
+  | cut -f 2 \
+  | sed "s/$/\n/" \
+  >> $ESSAY_OUTPUT
 
