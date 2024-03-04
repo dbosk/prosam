@@ -329,7 +329,7 @@ read null
 
 students=$(prosammail.py $MAILBOX)
 for s in $students; do
-  grade "$s" 1
+  grade "^$s@" 1
 done
 @
 
