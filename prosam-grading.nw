@@ -681,6 +681,7 @@ escaping.
 cut -f 3,5,6 $FEEDBACK | grep "^$student" | cut -f 2,3 \
   | sed "s/$/\n/" \
   | tr \" \' \
+  | fmt \
   >> $ESSAY_OUTPUT
 @
 
@@ -696,5 +697,6 @@ cut -f 3,5,6 $FEEDBACK \
   | grep -v "^$student" \
   | sed "s/$/\n/" \
   | tr \" \' \
+  | fmt \
   >> $ESSAY_OUTPUT
 
