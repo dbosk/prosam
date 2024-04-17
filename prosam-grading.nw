@@ -391,20 +391,26 @@ mailbox_arg = typer.Argument(help="The path to the Maildir mailbox.")
 @
 
 Now, on to the processing of the messages.
-We first check the subject line.
-We check that the subject is either ``prosam'' or ``Prosam'', not that 
-``prosam'' is a substring of the subject.
-There are other messages where ``prosam'' is a substring of the subject, but 
-not the other way around.
-If the user did everything correctly, we print their username.
-However, sometimes they complement it by replying to their old message, so we 
-also want to cover prefixes of ``Re:'' and ``Sv:''.
+If the message is already processed, we skip it.
+Otherwise we check the subject line, if we have no match, we skip it.
 <<check if we should process [[msg]] or continue>>=
 <<continue if [[msg]] is already processed>>
 if subject_pattern.match(msg['subject']) is None:
   continue
+@
+
+We check that the subject is either ``prosam'' or ``Prosam'', not that 
+``prosam'' is a substring of the subject.
+There are other messages where ``prosam'' is a substring of the subject, but 
+not the other way around.
+However, sometimes they complement it by replying to their old message, so we 
+also want to cover prefixes of ``Re:'' and ``Sv:''.
+There are also more ambitious students, like Agnes, who are more orderly and 
+append ``seminarie'' to the subject.
+We match for that too.
 <<[[msg]] iteration variables>>=
-subject_pattern = re.compile(r"(Re|Sv)?:?\s*(Prosam)\s*$", re.IGNORECASE)
+subject_pattern = re.compile(r"(Re|Sv)?:?\s*Prosam\s*(seminari(e|um))?\s*$",
+                             re.IGNORECASE)
 @
 
 Now that we know that [[msg]] is indeed a prosam message, we can try to process 
@@ -431,7 +437,8 @@ With this order, we'll find the student's email, not our own.
 In the other cases, we won't find any email address in the body, so then we'll 
 find the sender's address in the from field.
 <<[[msg]] iteration variables>>=
-email_pattern = re.compile(r"(\w+)\\?@\w*\.?kth\.se")
+email_pattern = re.compile(r"(\w+)\\?@\w*\.?kth\.se",
+                           re.IGNORECASE)
 <<let [[user]] be the student's username>>=
 <<add all usernames from [[body]] to [[user]]>>
 if not user:
@@ -466,7 +473,7 @@ Sometimes we send this email ourselves, just containing the student's email.
 We want to detect that easily.
 <<check that they wrote the right phrase in [[body]], or continue>>=
 <<let [[date]] be the date of [[msg]]>>
-sender = email_pattern.search(msg['from']).group(1)
+<<let [[sender]] be the sender>>
 if sender != user:
   print(f"{sender} ({user}) {date}:\n{body}", file=sys.stderr)
 else:
@@ -487,6 +494,37 @@ def input_choice(choices):
 import sys
 @
 
+We need to get the sender.
+Sometimes the sender is not a KTH email address, but a personal one.
+If it is a KTH one, we extract the username.
+If it's not, we simply use the address in the from field.
+But we need to decode it.
+
+The decoding might give several parts.
+The parts are either bytes or strings.
+Sometimes the bytes are encoded using a specific charset.
+Sometimes it's not specified ([[None]]), but it can still be either a string or 
+bytes.
+Sometimes it's automatically decoded to string, sometimes not.
+<<let [[sender]] be the sender>>=
+from_header = decode_header(msg['from'])
+sender = ""
+for part in from_header:
+  if part[1] is not None:
+    sender += part[0].decode(part[1])
+  elif isinstance(part[0], bytes):
+    sender += part[0].decode()
+  else:
+    sender += part[0]
+
+try:
+  sender = email_pattern.search(sender).group(1)
+except AttributeError:
+  pass
+<<additional imports>>=
+from email.header import decode_header
+@
+
 \paragraph{Reading out [[body]] and [[date]]}
 
 We need to read out the body and date of [[msg]].
@@ -495,23 +533,32 @@ The date is easy.
 date = msg['date']
 @
 
-For the body, we need to take into consideration if it's a multipart message.
-We also need to consider the format.
+Parsing the message body is hell.
+There seem to be many ways to do this, but the following seems to be the most 
+correct way.
+It's easy if the message is not multipart, then we simply decode it.
 <<let [[body]] be the body of [[msg]]>>=
 if not msg.is_multipart():
   body = get_decoded_body(msg.get_payload(decode=True), msg.get_charsets())
 else:
-  body = ""
-  for part in msg.get_payload():
-    try:
-      body += get_decoded_body(part, msg.get_charsets())
-      body += "\n"
-    except: continue
-  if not body:
-    continue
+  <<get [[body]] from multipart message>>
+
 body = body.strip()
+@
+
+Now [[get_decoded_body]] will trial-and-error decode the body using the 
+available charsets.
+Note that the body did get decoded, but now we also need to decode from bytes 
+to string.
+The bytes might be a string encoded using UTF-8 or something else.
+
+If it succeeds and the body seems to be HTML, it will convert the body to plain 
+text using [[pypandoc]].
 <<helper functions>>=
 def get_decoded_body(payload, charsets):
+  """
+  Try to decode the payload (bytes) to string using the charsets.
+  """
   for charset in charsets:
     try:
       body = payload.decode(charset)
@@ -520,12 +567,31 @@ def get_decoded_body(payload, charsets):
   else:
     raise Exception("Could not decode body")
 
-  if "html" in body or "div" in body:
-    body = pypandoc.convert_text(body, "plain", format="html")
+  <<convert [[body]] to plain text if it's HTML>>
   return body
+<<convert [[body]] to plain text if it's HTML>>=
+if "</html>" in body or "</div>" in body:
+  body = pypandoc.convert_text(body, "plain", format="html")
 <<additional imports>>=
 import pypandoc
 @
+
+For the body, we need to take into consideration if it's a multipart message.
+We also need to consider the format.
+<<get [[body]] from multipart message>>=
+body = ""
+for part in msg.walk():
+  content_type = part.get_content_type()
+  content_disp = str(part.get('Content-Disposition'))
+
+  if "attachment" in content_disp:
+    continue
+  if content_type == "text/plain" or content_type == "text/html":
+    body += get_decoded_body(part.get_payload(decode=True),
+                             part.get_charsets())
+    body += "\n"
+@
+
 
 \paragraph{Marking [[msg]] as processed}
 
