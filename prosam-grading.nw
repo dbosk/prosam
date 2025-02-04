@@ -627,9 +627,18 @@ We get the peer feedback in a spreadsheet from Viggo.
 From that we can generate a file that can be used to grade the essays.
 The file generated is a script that should be run after grading to set the 
 grades and provide the feedback back to the students.
+
+Since we need to run this for two files for period 1, we will allow the user to 
+specify the [[FEEDBACK]] filename on the command line, by running
+[[FEEDBACK=feedback-master.tsv ../reflektion.sh]].
+We do the same for [[ESSAY_OUTPUT]].
 <<common variables>>=
-FEEDBACK="feedback.tsv"
-ESSAY_OUTPUT="reflektion-results.sh"
+if [ -z "$FEEDBACK" ]; then
+  FEEDBACK="feedback.tsv"
+fi
+if [ -z "$ESSAY_OUTPUT" ]; then
+  ESSAY_OUTPUT="reflektion-results.sh"
+fi
 @
 
 One can only achieve the full points (2) if one has commented on at least six 
@@ -689,15 +698,23 @@ Something like this:
 \begin{verbatim}
   grade "Student Studentsson" points \
   "
-  Bra reflektion!
+  given feedback 1
 
-  feedback 1
-
-  feedback 2
+  given feedback 2
 
   ...
 
-  feedback 6
+  given feedback 6
+
+  gotten feedback 1
+
+  gotten feedback 2
+
+  ...
+
+  gotten feedback 6
+
+  Bra reflektion!
   "
 \end{verbatim}
 This way, the teacher grading can see what feedback the student received.
@@ -724,35 +741,61 @@ We are interested in\label{columns} the name of who gave the feedback (column
 }),
 <<reflektion variables>>=
 FEEDBACK_GIVER=2
-@ and who received the feedback (column 6\footnote{%
+@ and who received the feedback (column 5\footnote{%
+  Column 6 in the previous format.
   Column 5 in the old and transition formats.
 }),
 <<reflektion variables>>=
-FEEDBACK_RECEIVER=6
+FEEDBACK_RECEIVER=5
 @
 
-We are also interested in the actual feedback (column 11\footnote{%
+We are also interested in the actual feedback (column 10\footnote{%
+  Column 11 in the previous format.
   Column 6 in the transition format.
   Column 11 in the old format.
 }),
 <<reflektion variables>>=
-FEEDBACK_TEXT=11
+FEEDBACK_TEXT=10
 @
 
-Thus we count how many times the student's name occurred in column 
-[[FEEDBACK_GIVER]].
-However, we want to count unique comments.
+The easy way to count how many comments a student gave is to count the number 
+of times the student's name occurred in column [[FEEDBACK_GIVER]].
+However, we want to count several things.
+
+We want to count unique comments.
 If the student pasted the same comment for everyone, then we should only count 
 one instead of six.
 So we pass the student identifier (from column [[FEEDBACK_GIVER]]) and their 
 comments (column [[FEEDBACK_TEXT]]) through [[sort -u]].
+<<count the number of comments for student>>=
+unique_comments_count=$(cut -f ${FEEDBACK_GIVER},${FEEDBACK_TEXT} $FEEDBACK \
+                        | grep "$student" | cut -f 2 | sort -u | wc -l)
+@
+
+We also want to see for how many other students a student wrote comments.
+Now with FeedbackFruits, we can get several comments for the same student.
+This happens when they comment by annotation in the document.
+So we only want to count each commented-on student once.
+
+To calculate this, we'll cut the feedback giver and receiver columns.
+Then we'll grep for the giver's name.
+Then we can cut the receiver column and sort it uniquely.
+Then we can count those lines.
+<<count the number of comments for student>>=
+students_commented_on=$(cut -f ${FEEDBACK_GIVER},${FEEDBACK_RECEIVER} $FEEDBACK \
+                        | grep "$student" | cut -f 2 | sort -u | wc -l)
+@
 
 Finally, we print the number of unique comments to stdout for ourselves, the 
 user running the script.
+Now we print the smallest of the two.
 <<count the number of comments for student>>=
-comments_count=$(cut -f ${FEEDBACK_GIVER},${FEEDBACK_TEXT} $FEEDBACK \
-                  | grep "$student" | sort -u | wc -l)
-echo $ASSIGN $student $comments_count comments
+echo -n "$ASSIGN $student "
+if [ $unique_comments_count -lt $students_commented_on ]; then
+  echo $unique_comments_count comments
+else
+  echo $students_commented_on comments
+fi
 @
 
 We also want to add the comments to the output file.
@@ -761,7 +804,8 @@ same to everyone (which would fool [[sort -u]]).
 We also translate the double quotes to single quotes, as a very simple 
 escaping.
 <<add the comments count for student>>=
-(echo "Du gav $comments_count kommentarer."; echo) >> $ESSAY_OUTPUT
+(echo "Du kommenterade $students_commented_on reflektioner."; echo) \
+  >> $ESSAY_OUTPUT
 (echo "Du gav följande kommentarer:"; echo) >> $ESSAY_OUTPUT
 cut -f ${FEEDBACK_GIVER},${FEEDBACK_RECEIVER},${FEEDBACK_TEXT} $FEEDBACK \
   | grep "^$student" \
@@ -776,8 +820,10 @@ Finally, we include the comments (column [[FEEDBACK_TEXT]]) that the student
 (column [[FEEDBACK_RECEIVER]]) received, and from whom (column 
 [[FEEDBACK_GIVER]]).
 We then add two extra newlines to separate the comments for readability.
+
+We can get this by grepping for the student, then removing the lines where the 
+student is first---that is, comments given.
 <<add all comments from the other students>>=
-(echo "Bra reflektion!"; echo) >> $ESSAY_OUTPUT
 (echo "Du fick följande kommentarer:"; echo) >> $ESSAY_OUTPUT
 cut -f ${FEEDBACK_GIVER},${FEEDBACK_RECEIVER},${FEEDBACK_TEXT} $FEEDBACK \
   | grep "$student" \
@@ -787,4 +833,4 @@ cut -f ${FEEDBACK_GIVER},${FEEDBACK_RECEIVER},${FEEDBACK_TEXT} $FEEDBACK \
   | tr \" \' \
   | fmt \
   >> $ESSAY_OUTPUT
-
+(echo; echo "Bra reflektion!"; echo) >> $ESSAY_OUTPUT
